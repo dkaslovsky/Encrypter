@@ -26,12 +26,15 @@ func encrypt(message []byte, password []byte) (enc []byte, err error) {
 	if err != nil {
 		return enc, err
 	}
+	defer encWriter.Close()
 
 	// encrypt
 	_, err = encWriter.Write(message)
 	if err != nil {
 		return enc, err
 	}
+
+	// ensure writer is flushed before returning
 	err = encWriter.Close()
 	if err != nil {
 		return enc, err

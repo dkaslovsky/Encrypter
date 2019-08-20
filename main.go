@@ -17,50 +17,41 @@ type Opts struct {
 var opts Opts
 var parser = flags.NewParser(&opts, flags.Default)
 
-func encrypt(message []byte, password []byte) (enc []byte, err error) {
-
-	buf := bytes.NewBuffer(nil)
+func encrypt(buf *bytes.Buffer, message []byte, password []byte) (err error) {
 
 	// encryption writer
 	encWriter, err := openpgp.SymmetricallyEncrypt(buf, password, nil, nil)
 	if err != nil {
-		return enc, err
+		return err
 	}
 	defer encWriter.Close()
 
 	// encrypt
 	_, err = encWriter.Write(message)
 	if err != nil {
-		return enc, err
+		return err
 	}
 
-	// ensure writer is flushed before returning
-	err = encWriter.Close()
-	if err != nil {
-		return enc, err
-	}
-
-	return buf.Bytes(), nil
+	return nil
 }
 
-func decrypt(enc []byte, password []byte) (dec []byte, err error) {
+func decrypt(encrypted *bytes.Buffer, password []byte) (decrypted []byte, err error) {
 
 	// function to return password to openpgp.ReadMessage
 	getPwd := func(keys []openpgp.Key, symmetric bool) ([]byte, error) {
 		return password, nil
 	}
 
-	buf := bytes.NewBuffer(enc)
-	md, err := openpgp.ReadMessage(buf, nil, getPwd, nil)
+	md, err := openpgp.ReadMessage(encrypted, nil, getPwd, nil)
 	if err != nil {
-		return dec, err
+		return decrypted, err
 	}
-	dec, err = ioutil.ReadAll(md.UnverifiedBody)
+	decrypted, err = ioutil.ReadAll(md.UnverifiedBody)
 	if err != nil {
-		return dec, err
+		return decrypted, err
 	}
 
-	return dec, nil
+	return decrypted, nil
 }
 
 func main() {
@@ -84,14 +75,15 @@ func main() {
 	}
 
 	// encrypt
-	enc, err := encrypt(bytesIn, password)
+	encBuf := bytes.NewBuffer(nil)
+	err = encrypt(encBuf, bytesIn, password)
 	if err != nil {
 		fmt.Println("Error encrypting:", err)
 		os.Exit(1)
 	}
 
 	// write encrypted file
-	err = ioutil.WriteFile(encFile, enc, 0644)
+	err = ioutil.WriteFile(encFile, encBuf.Bytes(), 0644)
 	if err != nil {
 		fmt.Println("Error writing encrypted file:", err)
 		os.Exit(1)
@@ -105,7 +97,8 @@ func main() {
 	}
 
 	// decrypt
-	dec, err := decrypt(encBytesIn, password)
+	encBufIn := bytes.NewBuffer(encBytesIn)
+	dec, err := decrypt(encBufIn, password)
 	if err != nil {
 		fmt.Println("Error decrypting:", err)
 		os.Exit(1)
